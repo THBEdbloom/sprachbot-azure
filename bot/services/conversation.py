@@ -18,7 +18,8 @@ class ConversationManager:
         self.current_step_index = 0
         self.awaiting_confirmation = False
         self.returning_from_correction = False
-        print("👋 Willkommen beim Registrierungsprozess. Wie lautet dein Vorname?")
+        print("👋 Willkommen beim Registrierungsprozess.")
+        print("➡️ Wie lautet dein Vorname?")
 
     def is_complete(self):
         return all(self.data.values())
