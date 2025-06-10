@@ -9,16 +9,7 @@ def main():
     while True:
         user_input = speech.recognize()
 
-        if not user_input:
-            print("❗ Keine Sprache erkannt. Bitte versuche es erneut.")
-            continue
-
         print(f"✅ Erkannt: {user_input}")
-
-        # Sofortiger Abbruch durch Schlüsselwort
-        if user_input.lower().strip() in ["stopp", "stop", "abbrechen", "exit", "tschüss"]:
-            print("🛑 Registrierung wurde manuell abgebrochen.")
-            return
 
         response = convo.process_input(user_input)
         print(response)
