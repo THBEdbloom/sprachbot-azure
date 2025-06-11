@@ -19,85 +19,74 @@ class ConversationManager:
         self.awaiting_confirmation = False
         self.returning_from_correction = False
         self.previous_step_index = None  # Zum Speichern des vorherigen Schritts
+        self.correction_made = None
         print("👋 Willkommen beim Registrierungsprozess.")
         print("➡️ Wie lautet dein Vorname?")
 
     def is_complete(self):
         return all(self.data.values())
 
-    def user_wants_repeat(self, user_input):
-        repeat_keywords = ["nochmal", "noch einmal", "bitte wiederholen", "wiederhole das bitte", "das war falsch"]
-        return any(phrase in user_input.lower() for phrase in repeat_keywords)
-
-    def user_wants_abort(self, user_input):
-        abort_keywords = ["stopp", "abbrechen", "exit"]
-        return any(phrase in user_input.lower() for phrase in abort_keywords)
-
-    def user_wants_to_correct(self, user_input):
-        correction_keywords = [
-            "mein Vorname ist falsch", "ich möchte meinen Vorname ändern", "wiederhole meinen Vornamen",
-            "mein Nachname ist falsch", "ich möchte meinen Nachnamen ändern", "wiederhole meinen Nachnamen",
-            "ich möchte meine Adresse ändern", "mein Geburtsdatum ist falsch", "wiederhole mein Geburtsdatum"
-        ]
-        return any(phrase in user_input.lower() for phrase in correction_keywords)
-
     def process_input(self, user_input):
-        # Benutzer möchte die Registrierung abbrechen
-        if self.user_wants_abort(user_input):
-            print("🛑 Registrierung wurde vom Benutzer abgebrochen.")
-            exit(0)
-
-        # Fehlerkorrektur direkt nach der Eingabe
-        if self.user_wants_repeat(user_input):
-            # Wenn der Benutzer sagt „Wiederhole das bitte“, dann wiederhole die Frage VOR der aktuellen Frage
-            if self.current_step_index > 0:
-                self.current_step_index -= 1  # Gehe zurück zur letzten Frage
-            current_field = self.steps[self.current_step_index]  # Die vorherige offene Frage
-            return f"🔁 Kein Problem. Bitte gib dein {current_field} erneut an."
-
-        # Korrektur später im Prozess
-        if self.user_wants_to_correct(user_input):
-            current_field = self.steps[self.current_step_index]
-            print(f"🔄 Du hast angegeben, dass du deinen {current_field} ändern möchtest.")
-            self.data[current_field] = None
-            self.previous_step_index = self.current_step_index  # Speichern der aktuellen Position
-            self.current_step_index = self.steps.index("Vorname")  # Zurück zum Vorname
-            return f"🔁 Bitte gib deinen Vornamen erneut an."
-
+        # Wenn keine Entitäten erkannt wurden
+        if user_input == None:
+            # Der Bot wartet erneut auf eine Eingabe
+            return ("❓ Ich konnte keine Angabe erkennen. Bitte wiederhole das.")
+        
+        # Der Bot verarbeitet die Eingabe und fragt den nächsten Schritt ab
         response = query_clu(user_input)
         prediction = response["result"]["prediction"]
         entities = prediction.get("entities", [])
         intent = prediction.get("topIntent")
 
-        if intent == "Abbruch":
+        # Wenn der Intent "Abbruch-Intent" ist, wird der Bot die Registrierung abbrechen
+        if intent == "Abbruch-Intent":
             print("🛑 Registrierung wurde vom Benutzer abgebrochen.")
             exit(0)
 
-        if intent == "Korrektur":
-            current_field = self.steps[self.current_step_index]
-            self.data[current_field] = None
-            return f"🔁 Kein Problem. Bitte gib dein {current_field} erneut an."
-
-        if self.awaiting_confirmation:
-            if intent == "Bestätigung":
-                if any(w in user_input.lower() for w in ["nein", "nicht", "falsch"]):
-                    self.current_step_index = 0
-                    for k in self.data:
-                        self.data[k] = None
+        # Wenn der Intent "Bestätigung-Intent" ist, fragt der Bot nach der Bestätigung
+        if intent == "Bestätigungs-Intent":
+            user_input_lower = user_input.lower()
+            if any(phrase in user_input_lower for phrase in ["ja", "richtig"]):
+                try:
+                    print("⏳ Registrierung in Arbeit...")
+                    save_user_data(self.data)
                     self.awaiting_confirmation = False
-                    return "🔁 Okay, dann fangen wir nochmal von vorne an. Wie lautet dein Vorname?"
-                else:
-                    print("⏳ Registrierung wird verarbeitet...")
-                    try:
-                        save_user_data(self.data)
-                        print("✅ Registrierung abgeschlossen.")
-                    except Exception as e:
-                        print("❌ Fehler beim Speichern der Daten:", e)
-                        return f"❌ Fehler beim Speichern der Daten: {e}"
-                    exit(0)
-            else:
-                return "❓ Bitte bestätige, ob die Angaben korrekt sind (Ja oder Nein)."
+                    return "✅ Registrierung abgeschlossen."
+                except Exception as e:
+                    print(f"❌ Fehler beim Speichern der Daten: {e}")
+                    self.awaiting_confirmation = True
+                    daten = "\n".join([f"{k}: {v}" for k, v in self.data.items()])
+                    return f"🔍 Ich habe folgende Daten erfasst:\n{daten}\n➡️ Stimmen diese Angaben? (Ja oder Nein)"
+                    
+            elif any(phrase in user_input_lower for phrase in ["nein", "falsch"]):
+                print("❌ Du hast angegeben, dass die Daten nicht korrekt sind.")
+                return "🔁 Welche Angabe möchtest du korrigieren?"
 
+        # Prüfen, ob der Benutzer nach einer Korrektur fragt
+        if intent == "Korrektur-Intent":
+            # Wenn eine Entität in der Korrektur erkannt wurde, zum spezifischen Feld springen
+            if entities:
+                for ent in entities:
+                    if "_Korrektur" in ent["category"]:  # Überprüfe, ob eine Korrektur-Entität erkannt wurde
+                        current_field = ent["category"].replace("_Korrektur", "")  # Entferne "_Korrektur" von der Kategorie
+                        self.data[current_field] = None  # Lösche den aktuellen Wert für die Korrektur
+                        self.previous_step_index = self.current_step_index
+                        self.current_step_index = self.steps.index(current_field)  # Gehe zum Schritt der Entität
+                        
+                        next_field = self.steps[self.current_step_index]
+                        self.correction_made = True
+                        return f"🔁 Kein Problem. Bitte gib deinen {next_field} erneut an."
+            
+            # Wenn keine Entität in der Korrektur erkannt wurde, zurück zur letzten Frage
+            elif not self.awaiting_confirmation:
+                if self.current_step_index > 0:
+                    self.current_step_index -= 1  # Gehe zurück zur letzten Frage
+                current_field = self.steps[self.current_step_index]  # Die vorherige offene Frage
+                return f"🔁 Kein Problem. Bitte gib dein {current_field} erneut an."
+            else:
+                return "❓ Ich konnte nicht festellen welche Eingabe du ändern möchtest. Bitte wiederhole das."
+
+        # Weitere Logik für die Entitäten-Erkennung und Datenspeicherung
         current_field = self.steps[self.current_step_index]
         recognized_entity = None
 
@@ -112,23 +101,19 @@ class ConversationManager:
 
         print(f"📌 {current_field}: {self.data[current_field]}")
 
-        if self.returning_from_correction:
-            self.returning_from_correction = False
-            if self.is_complete():
-                self.awaiting_confirmation = True
-                daten = "\n".join([f"{k}: {v}" for k, v in self.data.items()])
-                return f"🔍 Ich habe folgende Daten erfasst:\n{daten}\n➡️ Stimmen diese Angaben? (Ja oder Nein)"
-            else:
-                self.current_step_index += 1  # Wir erhöhen den Index, um zur nächsten Frage zu gehen
-                return f"➡️ Bitte gib auch dein {self.steps[self.current_step_index]} an."
+        if self.correction_made:
+            self.current_step_index = self.previous_step_index
+            self.correction_made = False
+        else:
+            # Weiter zur nächsten Frage
+            self.current_step_index += 1  # Erhöhen des Index, um zur nächsten Frage zu gehen
 
-        # Überprüfen, ob der Benutzer die Frage nach dem Vornamen wiederholt hat und den Index nicht zurücksetzt
-        self.current_step_index += 1  # Weiter zum nächsten Schritt (Nachname, Geburtsdatum, etc.)
+        # Überprüfen, ob alle Felder ausgefüllt sind
+        if self.current_step_index >= len(self.steps):
+            self.awaiting_confirmation = True
+            daten = "\n".join([f"{k}: {v}" for k, v in self.data.items()])
+            return f"🔍 Ich habe folgende Daten erfasst:\n{daten}\n➡️ Stimmen diese Angaben? (Ja oder Nein)"
 
         if self.current_step_index < len(self.steps):
             next_field = self.steps[self.current_step_index]
             return f"➡️ Bitte gib auch dein {next_field} an."
-        else:
-            self.awaiting_confirmation = True
-            daten = "\n".join([f"{k}: {v}" for k, v in self.data.items()])
-            return f"🔍 Ich habe folgende Daten erfasst:\n{daten}\n➡️ Stimmen diese Angaben? (Ja oder Nein)"

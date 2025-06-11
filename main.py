@@ -2,7 +2,7 @@ from bot.services.speech_service import SpeechService
 from bot.services.conversation import ConversationManager
 
 def main():
-    print("🟣 Sprachbot gestartet. Sprich für die Registrierung oder sage 'Stopp'.")
+    print("🟣 Sprachbot gestartet. Sprich für die Registrierung.")
     speech = SpeechService()
     convo = ConversationManager()
 
