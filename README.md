@@ -9,7 +9,7 @@ Ein sprachbasierter Bot zur Benutzerregistrierung mit **Azure Speech**, **Conver
 - 🎙️ **Spracherkennung** mit Azure Speech SDK
 - 🧠 **Intent & Entity-Erkennung** über Azure CLU
 - 🔁 **Dialogfluss mit Validierung & Korrekturoption**
-- 💾 **Persistenz in SQL Server-Datenbank**
+- 💾 **Persistenz in SQL Server-Datenbank** über Azure SQL
 - ♻️ **Modularer, wartbarer Codeaufbau**
 
 ---
@@ -17,12 +17,12 @@ Ein sprachbasierter Bot zur Benutzerregistrierung mit **Azure Speech**, **Conver
 ## 🧱 Architektur
 
 ```plaintext
-+-------------------+      Spracheingabe      +--------------------+
-|                   | ---------------------> |                    |
-|   User (Spricht)  |                         |  SpeechService     |
-|                   | <---------------------  | (Azure Speech API) |
-+-------------------+     Transkribierter     +--------------------+
-                             Text
+        +-------------------+      Spracheingabe      +--------------------+
+        |                   | ---------------------> |                    |
+        |   User (Spricht)  |                         |  SpeechService     |
+        |                   | <---------------------  | (Azure Speech API) |
+        +-------------------+     Transkribierter     +--------------------+
+                                    Text
                                      |
                                      v
                             +--------------------+
@@ -30,11 +30,11 @@ Ein sprachbasierter Bot zur Benutzerregistrierung mit **Azure Speech**, **Conver
                             | (Steuerlogik)      |
                             +--------------------+
                                      |
-      +-----------------------------+------------------------------+
-      |                             |                              |
-      v                             v                              v
-CLU API (Intent + Entity)    Validator-Logik               SQL-Datenbank
-(bot.services.clu_client)    (bot.services.validators)     (bot.database.sql_client)
+       +-----------------------------+------------------------------+
+       |                             |                              |
+       v                             v                              v
+ CLU API (Intent + Entity)    Validator-Logik               SQL-Datenbank
+ (bot.services.clu_client)    (bot.services.validators)     (bot.database.sql_client)
 ```
 
 ---
@@ -82,14 +82,13 @@ User            SpeechService        ConversationManager        CLU API         
 - Azure Ressourcen:
   - Speech Service
   - Conversational Language Understanding (CLU)
-  - SQL Server + Datenbank
+  - Azure SQL Server
 
 ### 2. Installation
 
 ```bash
 git clone https://github.com/dein-nutzername/sprachbot.git
 cd sprachbot
-pip install -r requirements.txt
 ```
 
 ### 3. `.env` Datei anlegen
@@ -158,3 +157,147 @@ python main.py
 
 - ✨ Laurin Krüger – als Ersteller
 - 💬 Azure – für Sprache & KI
+
+---
+
+## ☁️ Azure-Setup-Anleitung
+
+Diese Anleitung beschreibt, wie du alle nötigen Azure-Ressourcen für den sprachgesteuerten Registrierungsbot einrichtest – inklusive Azure Speech, CLU und Azure SQL-Datenbank.
+
+### 📋 Voraussetzungen
+
+- Azure-Konto: https://azure.microsoft.com
+- Azure CLI: https://learn.microsoft.com/de-de/cli/azure/install-azure-cli
+- Python 3.10+
+
+---
+
+### 1️⃣ Ressourcengruppe erstellen (optional, empfohlen)
+
+```bash
+az login
+az group create --name sprachbot-rg --location westeurope
+```
+
+---
+
+### 2️⃣ Azure Speech Service einrichten
+
+```bash
+az cognitiveservices account create \
+  --name sprachbot-speech \
+  --resource-group sprachbot-rg \
+  --kind SpeechServices \
+  --sku F0 \
+  --location westeurope
+```
+
+**Zugangsdaten abrufen:**
+
+```bash
+az cognitiveservices account keys list \
+  --name sprachbot-speech \
+  --resource-group sprachbot-rg
+```
+
+---
+
+### 3️⃣ Azure CLU (Conversational Language Understanding)
+
+#### A. Language Resource erstellen
+
+```bash
+az cognitiveservices account create \
+  --name sprachbot-lang \
+  --resource-group sprachbot-rg \
+  --kind Language \
+  --sku F0 \
+  --location westeurope
+```
+
+#### B. Projekt in Language Studio
+
+1. Gehe zu: https://language.azure.com
+2. Wähle **Conversational Language Understanding**
+3. Lege ein Projekt an:
+   - Name: `RegistrierungBot`
+   - Sprache: Deutsch
+   - Ziel: Intent- & Entity-Erkennung
+4. Trainiere & deploye dein Projekt (Deployment-Name: `production`)
+
+**Zugangsdaten:**
+
+```bash
+az cognitiveservices account keys list \
+  --name sprachbot-lang \
+  --resource-group sprachbot-rg
+```
+
+---
+
+### 4️⃣ Azure SQL-Datenbank einrichten
+
+#### A. SQL Server erstellen
+
+```bash
+az sql server create \
+  --name sprachbot-sql \
+  --resource-group sprachbot-rg \
+  --location westeurope \
+  --admin-user sqladmin \
+  --admin-password DeinSicheresPasswort123!
+```
+
+#### B. Datenbank anlegen
+
+```bash
+az sql db create \
+  --resource-group sprachbot-rg \
+  --server sprachbot-sql \
+  --name SprachBotDB \
+  --service-objective S0
+```
+
+#### C. Firewallregel setzen
+
+```bash
+az sql server firewall-rule create \
+  --resource-group sprachbot-rg \
+  --server sprachbot-sql \
+  --name AllowAllLocal \
+  --start-ip-address 0.0.0.0 \
+  --end-ip-address 255.255.255.255
+```
+
+---
+
+### 5️⃣ .env Datei konfigurieren
+
+```env
+# Azure Speech
+SPEECH_KEY=dein_speech_key
+SPEECH_REGION=westeurope
+
+# Azure CLU
+CLU_ENDPOINT=https://sprachbot-lang.cognitiveservices.azure.com
+CLU_KEY=dein_clu_key
+CLU_PROJECT_NAME=RegistrierungBot
+CLU_DEPLOYMENT_NAME=production
+
+# Azure SQL
+SQL_SERVER=sprachbot-sql.database.windows.net
+SQL_DATABASE=SprachBotDB
+SQL_USERNAME=sqladmin
+SQL_PASSWORD=DeinSicheresPasswort123!
+```
+
+---
+
+### ✅ Testen
+
+```bash
+python main.py
+```
+
+---
+
