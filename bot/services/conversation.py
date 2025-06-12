@@ -1,5 +1,6 @@
 from bot.services.clu_client import query_clu
 from bot.database.sql_client import save_user_data
+from bot.services.validators import validate_field  # <-- Ausgelagert!
 from datetime import datetime
 import re
 
@@ -109,10 +110,16 @@ class ConversationManager:
         if not self.data[current_field]:
             return f"❓ Ich konnte keine Angabe zu {current_field} erkennen. Bitte wiederhole das."
 
-        # 🔍 Validierung
-        if not self.validate_field(current_field, self.data[current_field]):
+        if not validate_field(current_field, self.data[current_field]):
             self.data[current_field] = None
+            if current_field == "Geburtsdatum":
+                return "⚠️ Bitte gib dein Geburtsdatum im Format TT.MM.JJJJ an, z. B. 20.02.2002."
             return f"⚠️ Die Angabe zu {current_field} scheint ungültig zu sein. Bitte versuche es erneut."
+
+        if current_field == "Hausnummer":
+            match = re.search(r"\d{1,4}[a-zA-Z]?", self.data[current_field].strip().rstrip("."))
+            if match:
+                self.data[current_field] = match.group(0)
 
         print(f"📌 {current_field}: {self.data[current_field]}")
 
@@ -130,39 +137,3 @@ class ConversationManager:
         if self.current_step_index < len(self.steps):
             next_field = self.steps[self.current_step_index]
             return f"➡️ Bitte gib auch dein {next_field} an."
-
-    def validate_field(self, field, value):
-        if field in ["Vorname", "Nachname", "Ort", "Land"]:
-            return value.replace(" ", "").isalpha() and len(value) >= 2
-
-        if field == "Geburtsdatum":
-            try:
-                try:
-                    # Standardformat: 20.02.2002
-                    geb = datetime.strptime(value.strip(), "%d.%m.%Y")
-                except ValueError:
-                    # Alternative: 20. Februar 2002
-                    geb = datetime.strptime(value.strip(), "%d. %B %Y")
-                return geb < datetime.now() and (datetime.now().year - geb.year) < 120
-            except:
-                return False
-
-        if field == "Straße":
-            return len(value.strip()) >= 2
-
-        if field == "Hausnummer":
-            value = value.strip().rstrip(".")
-            match = re.search(r"\d{1,4}[a-zA-Z]?", value)
-            return bool(match)
-
-        if field == "PLZ":
-            return bool(re.match(r"^\d{5}$", value))
-
-        if field == "Email":
-            return "@" in value and "." in value and len(value) >= 6
-
-        if field == "Telefonnummer":
-            digits = re.sub(r"[^\d]", "", value)
-            return len(digits) >= 7
-
-        return True
