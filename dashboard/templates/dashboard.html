@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+</head>
+<body>
+    <h1>Benutzerübersicht</h1>
+
+    <!-- Suchformular mit Rücksetzung -->
+    <form method="get">
+        <input type="text" name="search" placeholder="Suche nach Name, Ort, E-Mail etc." value="{{ request.args.get('search', '') }}">
+        <button type="submit">Suchen</button>
+        <a href="/">🔄 Zurücksetzen</a>
+    </form>
+
+    <!-- Datentabelle -->
+    {% if data %}
+        <table border="1">
+            <tr>
+                {% for col in data[0].keys() %}
+                <th>{{ col }}</th>
+                {% endfor %}
+            </tr>
+            {% for row in data %}
+            <tr>
+                {% for val in row.values() %}
+                <td>{{ val }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>🔍 Keine Benutzer gefunden.</p>
+    {% endif %}
+
+    <br>
+
+    <!-- Exporte und Statistik, alle angepasst an die aktuelle Suche -->
+    <a href="/export/csv?search={{ request.args.get('search', '') }}">⬇️ Export als CSV</a> |
+    <a href="/export/json?search={{ request.args.get('search', '') }}">⬇️ Export als JSON</a> |
+    <a href="/stats/pdf?search={{ request.args.get('search', '') }}">📊 Statistik (PDF)</a>
+</body>
+</html>
