@@ -27,6 +27,7 @@ def save_user_data(data):
                         Nachname NVARCHAR(100),
                         Geburtsdatum NVARCHAR(50),
                         Straße NVARCHAR(200),
+                        Hausnummer NVARCHAR(20),
                         PLZ NVARCHAR(20),
                         Ort NVARCHAR(100),
                         Land NVARCHAR(100),
@@ -39,13 +40,14 @@ def save_user_data(data):
             # Datensatz einfügen
             cursor.execute("""
                 INSERT INTO Benutzerdaten (
-                    Vorname, Nachname, Geburtsdatum, Straße, PLZ, Ort, Land, Email, Telefonnummer
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    Vorname, Nachname, Geburtsdatum, Straße, Hausnummer, PLZ, Ort, Land, Email, Telefonnummer
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data["Vorname"],
                 data["Nachname"],
                 data["Geburtsdatum"],
                 data["Straße"],
+                data["Hausnummer"],
                 data["PLZ"],
                 data["Ort"],
                 data["Land"],
@@ -54,7 +56,9 @@ def save_user_data(data):
             ))
 
             conn.commit()
-            print("💾 Benutzerdaten erfolgreich gespeichert.")
+            print("💾 Benutzerdaten erfolgreich gespeichert.")   
 
     except Exception as e:
         print("❌ Fehler beim Speichern der Daten:", e)
+
+
